@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>小狗钱钱冒险之旅 · 财商挑战</title>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #fff; font-family: 'Courier New', monospace; color: #111; padding: 1.5rem; line-height: 1.4; }
+        .app-container { max-width: 680px; margin: 0 auto; background: white; border: 3px solid #000; border-radius: 32px; padding: 1.8rem 1.5rem 2rem; position: relative; }
+        .paw-bg { position: absolute; bottom: 10px; right: 15px; opacity: 0.2; font-size: 3rem; pointer-events: none; }
+        h1 { font-size: 1.9rem; border-left: 6px solid #000; padding-left: 0.8rem; margin-bottom: 1rem; }
+        button { background: white; border: 2px solid #000; border-radius: 60px; padding: 8px 20px; font-family: inherit; font-weight: bold; cursor: pointer; box-shadow: 3px 3px 0 #ddd; }
+        button:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 #aaa; }
+        button.primary { background: black; color: white; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 8px 0; border: 2px solid #111; background: #fff; border-radius: 16px; }
+        textarea { min-height: 70px; }
+        .card { border: 2px solid #000; border-radius: 24px; padding: 1rem; margin: 1rem 0; background: #fefefe; }
+        .flex-btns { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+        .quote-modal { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .quote-card { background: white; border: 4px solid black; border-radius: 40px; padding: 2rem; max-width: 280px; text-align: center; font-weight: bold; font-size: 1.2rem; }
+        .checkin-btns button { margin-right: 10px; }
+        footer { margin-top: 20px; font-size: 0.7rem; text-align: center; border-top: 1px solid #ccc; padding-top: 15px; }
+        .diary-content { white-space: pre-wrap; word-break: break-word; background: #f5f5f5; padding: 8px; border-radius: 12px; margin-top: 6px; }
+        @media (max-width:500px){ body{ padding:0.8rem; } .app-container{ padding:1.2rem; } }
+    </style>
+</head>
+<body>
+<div id="root" class="app-container">
+    <div class="paw-bg">🐾🐾</div>
+    <div id="dynamicContent"></div>
+</div>
+
+<script>
+    const STORAGE_KEY = 'puppy_money_adventure';
+
+    // 鼓励语库
+    const diaryEncouragements = [
+        "太棒了！每一天的成功都值得被看见。继续加油！",
+        "你的努力正在积累奇迹，明天会更好！",
+        "成功日记里每一条，都是你自信的砖石。",
+        "汪！又记下一件小事，离梦想更近一步。",
+        "坚持记录，你会发现自己比想象中更强大。",
+        "小成功积累大改变，你正在成为自己的英雄。"
+    ];
+    const saveEncouragements = [
+        "今天的坚持，是未来财富的种子。",
+        "每一块钱的存下，都是在为自由投票。",
+        "存钱不是克制，是对未来的自己说谢谢。",
+        "你的财商在悄悄生长，继续保持。",
+        "哇！又一天做到了，自律给你自由。"
+    ];
+    const microEncouragements = [
+        "每一个微小的行动，都在塑造更好的自己。",
+        "拒绝诱惑的每一次，都是对意志力的锻炼。",
+        "小选择，大改变，你今天赢了。",
+        "习惯的力量正在你体内生根。",
+        "不做一件小事，也能积攒巨大的能量。"
+    ];
+    const fakeEncouragements = [
+        "诚实是最大的财富，下次努力存钱吧～",
+        "没关系，真实面对自己就是进步的开始。",
+        "偶尔偏离航道没关系，调整方向继续前行。",
+        "记假账可不好哦，下次我们一起做到。"
+    ];
+    const reviewEncouragements = [
+        "复盘是成长的镜子，你真棒！",
+        "从过去汲取力量，未来更清晰。",
+        "看见进步，也看见方向，继续前进！",
+        "每一个脚印都算数，你做得很好。",
+        "回顾是为了更好地出发，汪！"
+    ];
+
+    function getRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+    function getEmptyProgress() {
+        return {
+            version: 2,
+            userName: '',
+            currentChallenge: 1,
+            challenge1: { completed: false, wishes: [], quoteShown: false },
+            challenge2: { completed: false, diary: {}, currentDay: 1, reviewConfirmed: false, quoteShown: false, improvementSuggestion: '' },
+            challenge3: { completed: false, mode: null, goal: 0, actionText: '', checkins: {}, successFlag: false, quoteShown: false, microAmount: 0, microCompliantDays: 0 },
+            challenge4: { completed: false, useFor: '', sameAmountNextWeek: null, nextWeekGoal: '', quoteShown: false, summaryGenerated: false },
+            badgeEarned: false,
+            posterData: null
+        };
+    }
+
+    let progress = getEmptyProgress();
+
+    function loadProgress() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            try {
+                const saved = JSON.parse(raw);
+                progress = { ...getEmptyProgress(), ...saved };
+                progress.challenge1 = { ...getEmptyProgress().challenge1, ...saved.challenge1 };
+                progress.challenge2 = { ...getEmptyProgress().challenge2, ...saved.challenge2 };
+                progress.challenge3 = { ...getEmptyProgress().challenge3, ...saved.challenge3 };
+                progress.challenge4 = { ...getEmptyProgress().challenge4, ...saved.challenge4 };
+            } catch(e) {}
+        } else {
+            progress = getEmptyProgress();
+        }
+        if (progress.challenge1.completed && progress.currentChallenge === 1) progress.currentChallenge = 2;
+        if (progress.challenge2.completed && progress.currentChallenge === 2) progress.currentChallenge = 3;
+        if (progress.challenge3.completed && progress.currentChallenge === 3) progress.currentChallenge = 4;
+        if (progress.challenge4.completed && progress.currentChallenge === 4) progress.currentChallenge = 5;
+    }
+    function saveProgress() { localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }
+
+    function showEncouragement(quoteText, onCloseCallback) {
+        const modal = document.createElement('div');
+        modal.className = 'quote-modal';
+        modal.innerHTML = `
+            <div class="quote-card">
+                <div>🐕✨</div>
+                <p style="margin: 15px 0;">“${quoteText}”</p>
+                <button id="quoteCloseBtn">继续前进</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('quoteCloseBtn').onclick = () => {
+            modal.remove();
+            if (onCloseCallback) onCloseCallback();
+        };
+    }
+
+    function render() {
+        const container = document.getElementById('dynamicContent');
+        if (!container) return;
+        const hasSavedData = localStorage.getItem(STORAGE_KEY) !== null;
+        if (!hasSavedData || !progress.userName) {
+            renderBookIntro(container);
+            return;
+        }
+        if (progress.challenge4.completed && progress.badgeEarned) {
+            renderSummaryAndBadge(container);
+            return;
+        }
+        if (progress.currentChallenge === 5) {
+            if (!progress.badgeEarned) {
+                progress.badgeEarned = true;
+                saveProgress();
+            }
+            renderSummaryAndBadge(container);
+            return;
+        }
+        switch(progress.currentChallenge) {
+            case 1: renderChallenge1(container); break;
+            case 2: renderChallenge2(container); break;
+            case 3: renderChallenge3(container); break;
+            case 4: renderChallenge4(container); break;
+            default: renderBookIntro(container);
+        }
+    }
+
+    // 书籍介绍页
+    function renderBookIntro(container) {
+        container.innerHTML = `
+            <h1>🐕‍🦺 小狗钱钱<br>冒险之旅</h1>
+            <div style="text-align:center; margin:15px 0;"><span style="font-size:5rem;">🐕</span></div>
+            <div class="card">
+                <p><strong>作者：博多·舍费尔</strong> —— 欧洲首席金钱教练</p>
+                <p>📖 经典语录：<em>“你必须设想自己已经拥有了这些钱，然后去行动。”</em></p>
+                <p>✨ 开发者：天明·语读会</p>
+                <p>🎯 帮助你通过趣味挑战，建立受用终身的财商习惯。</p>
+            </div>
+            <div style="margin:20px 0;">
+                <label for="knightName" style="font-weight:bold;">⚔️ 请输入你的名字，成为财商骑士：</label>
+                <input type="text" id="knightName" placeholder="例如：小钱钱" autocomplete="off">
+            </div>
+            <button id="startAdventureBtn" class="primary" disabled>🚀 开始冒险</button>
+            <footer>🐾 数据保存在本地，无任何账号，请放心使用</footer>
+        `;
+        const nameInput = document.getElementById('knightName');
+        const startBtn = document.getElementById('startAdventureBtn');
+        function checkName() { startBtn.disabled = !nameInput.value.trim(); }
+        nameInput.addEventListener('input', checkName);
+        checkName();
+        startBtn.addEventListener('click', () => {
+            const userName = nameInput.value.trim();
+            if (!userName) return;
+            progress = getEmptyProgress();
+            progress.userName = userName;
+            progress.currentChallenge = 1;
+            saveProgress();
+            render();
+        });
+    }
+
+    // 挑战一
+    function renderChallenge1(container) {
+        let wishes = progress.challenge1.wishes || [];
+        container.innerHTML = `
+            <h2>🐾 挑战一 · 三个金钱愿望</h2>
+            <p>写下你对金钱最真切的三个愿望，并说明为什么重要。</p>
+            <div id="wishForm"></div>
+            <button id="saveWishesBtn" class="primary" disabled>✨ 保存并继续挑战</button>
+            <div style="margin-top:20px;"><button id="resetAdventureBtn">🔄 重新冒险</button></div>
+        `;
+        const formDiv = document.getElementById('wishForm');
+        function renderWishes() {
+            let html = '';
+            for(let i=0;i<3;i++) {
+                const w = wishes[i] || {text:'',why:''};
+                html += `<label>愿望 ${i+1}</label><input type="text" id="wishText${i}" value="${escapeHtml(w.text)}" placeholder="例如：存下第一桶金">
+                         <label>为什么这个愿望对我很重要？</label><textarea id="wishWhy${i}" placeholder="因为...">${escapeHtml(w.why)}</textarea>`;
+            }
+            formDiv.innerHTML = html;
+            const btn = document.getElementById('saveWishesBtn');
+            function checkFilled() {
+                let allOk = true;
+                for(let i=0;i<3;i++) {
+                    const t = document.getElementById(`wishText${i}`)?.value.trim();
+                    const y = document.getElementById(`wishWhy${i}`)?.value.trim();
+                    if(!t || !y) allOk = false;
+                }
+                if(btn) btn.disabled = !allOk;
+            }
+            for(let i=0;i<3;i++) {
+                document.getElementById(`wishText${i}`)?.addEventListener('input', checkFilled);
+                document.getElementById(`wishWhy${i}`)?.addEventListener('input', checkFilled);
+            }
+            checkFilled();
+        }
+        renderWishes();
+        document.getElementById('saveWishesBtn')?.addEventListener('click', () => {
+            const newWishes = [];
+            for(let i=0;i<3;i++) {
+                const text = document.getElementById(`wishText${i}`).value.trim();
+                const why = document.getElementById(`wishWhy${i}`).value.trim();
+                if(text && why) newWishes.push({text, why});
+            }
+            if(newWishes.length===3) {
+                progress.challenge1.wishes = newWishes;
+                progress.challenge1.completed = true;
+                saveProgress();
+                showEncouragement("愿望再大，也要每天看一眼。", () => {
+                    progress.currentChallenge = 2;
+                    saveProgress();
+                    render();
+                });
+            }
+        });
+        document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            render();
+        });
+    }
+
+    // 挑战二：成功日记
+    function renderChallenge2(container) {
+        let diary = progress.challenge2.diary || {};
+        let currentDay = progress.challenge2.currentDay || 1;
+        if (progress.challenge2.completed) {
+            progress.currentChallenge = 3;
+            saveProgress();
+            render();
+            return;
+        }
+        if (progress.challenge2.reviewConfirmed && currentDay > 5) {
+            progress.challenge2.completed = true;
+            saveProgress();
+            const randomReviewMsg = getRandom(reviewEncouragements);
+            showEncouragement(randomReviewMsg, () => {
+                progress.currentChallenge = 3;
+                saveProgress();
+                render();
+            });
+            return;
+        }
+        const isReviewDay = (currentDay === 6);
+        container.innerHTML = `
+            <h2>📔 成功日记 · 第${currentDay}/6天</h2>
+            <p>每天写下1~5件成功小事（哪怕微小的进步）</p>
+            <div id="diaryArea"></div>
+            <div class="flex-btns">
+                <button id="saveDiaryBtn" class="primary">💾 保存日记</button>
+                ${currentDay > 1 ? '<button id="prevDayBtn">◀ 前一天</button>' : ''}
+            </div>
+            <button id="resetAdventureBtn">🔄 重新冒险</button>
+        `;
+        const diaryArea = document.getElementById('diaryArea');
+        function renderDiaryInput() {
+            if(isReviewDay) {
+                const suggestion = progress.challenge2.improvementSuggestion || "基于你的日记，建议你：每天先做最困难的一件小事，你会更自信！";
+                diaryArea.innerHTML = `<div class="card"><p>🌟 5天成功日记复盘 🌟</p><p>${suggestion}</p><button id="confirmReviewBtn" class="primary">✅ 确认复盘，完成挑战</button></div>`;
+                document.getElementById('confirmReviewBtn')?.addEventListener('click', () => {
+                    progress.challenge2.reviewConfirmed = true;
+                    progress.challenge2.completed = true;
+                    saveProgress();
+                    const randomReviewMsg = getRandom(reviewEncouragements);
+                    showEncouragement(randomReviewMsg, () => {
+                        progress.currentChallenge = 3;
+                        saveProgress();
+                        render();
+                    });
+                });
+                return;
+            }
+            let existing = diary[`day${currentDay}`] || '';
+            diaryArea.innerHTML = `<textarea id="dailyContent" rows="4" placeholder="例：1. 今天拒绝了奶茶\n2. 完成了工作汇报\n3. 运动20分钟">${escapeHtml(existing)}</textarea><p>📝 至少写1件事，最多5件</p>`;
+        }
+        renderDiaryInput();
+        const saveBtn = document.getElementById('saveDiaryBtn');
+        saveBtn?.addEventListener('click', () => {
+            const content = document.getElementById('dailyContent')?.value.trim();
+            if(content && content.length>0) {
+                diary[`day${currentDay}`] = content;
+                progress.challenge2.diary = diary;
+                if(currentDay === 5 && !progress.challenge2.improvementSuggestion) {
+                    let sug = "继续保持你的自信，成功日记会积累能量。";
+                    if(content.includes("拖延")) sug = "你提到了拖延，试着把任务拆解成5分钟小目标。";
+                    else if(content.includes("早起")) sug = "早起习惯很棒，继续巩固。";
+                    progress.challenge2.improvementSuggestion = sug;
+                }
+                let nextDay = (currentDay === 5) ? 6 : currentDay + 1;
+                progress.challenge2.currentDay = nextDay;
+                saveProgress();
+                const randomMsg = getRandom(diaryEncouragements);
+                showEncouragement(randomMsg, () => {
+                    render();
+                });
+            } else {
+                alert("请至少写下一件成功的事~");
+            }
+        });
+        document.getElementById('prevDayBtn')?.addEventListener('click', () => {
+            if(currentDay>1) {
+                progress.challenge2.currentDay = currentDay-1;
+                saveProgress();
+                render();
+            }
+        });
+        document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            render();
+        });
+    }
+
+    // 挑战三：存钱大冒险
+    function renderChallenge3(container) {
+        if (progress.challenge3.completed) {
+            progress.currentChallenge = 4;
+            saveProgress();
+            render();
+            return;
+        }
+        const mode = progress.challenge3.mode;
+        if (!mode) {
+            container.innerHTML = `
+                <h2>💰 存钱大冒险 · 选择你的道路</h2>
+                <div class="flex-btns">
+                    <button id="modeSaveBtn">🐖 模式A：7天存钱挑战</button>
+                    <button id="modeMicroBtn">✨ 模式B：微行动挑战</button>
+                </div>
+                <button id="resetAdventureBtn">🔄 重新冒险</button>
+            `;
+            document.getElementById('modeSaveBtn')?.addEventListener('click', () => {
+                progress.challenge3.mode = 'save';
+                saveProgress();
+                render();
+            });
+            document.getElementById('modeMicroBtn')?.addEventListener('click', () => {
+                progress.challenge3.mode = 'micro';
+                saveProgress();
+                render();
+            });
+            document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+                localStorage.removeItem(STORAGE_KEY);
+                render();
+            });
+            return;
+        }
+        const isSaveMode = mode === 'save';
+        let checkins = progress.challenge3.checkins || {};
+        let currentDay = Object.keys(checkins).length + 1;
+        if (currentDay > 7) {
+            progress.challenge3.completed = true;
+            saveProgress();
+            showEncouragement("金钱不是人生最重要的，但缺钱的时候，钱就变得无比重要。", () => {
+                progress.currentChallenge = 4;
+                saveProgress();
+                render();
+            });
+            return;
+        }
+        let goal = progress.challenge3.goal;
+        let actionText = progress.challenge3.actionText;
+        let microAmount = progress.challenge3.microAmount;
+        if (isSaveMode && !goal) {
+            container.innerHTML = `<h2>🐖 7天存钱目标</h2><input id="goalInput" placeholder="7天我要存多少元？" type="number"><button id="setGoalBtn">设定目标</button><button id="resetAdventureBtn" style="margin-top:10px;">🔄 重新冒险</button>`;
+            document.getElementById('setGoalBtn')?.addEventListener('click', () => {
+                const val = parseInt(document.getElementById('goalInput').value);
+                if(val>0) {
+                    progress.challenge3.goal = val;
+                    saveProgress();
+                    render();
+                } else alert("请输入正数");
+            });
+            document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+                localStorage.removeItem(STORAGE_KEY);
+                render();
+            });
+            return;
+        }
+        if (!isSaveMode && !actionText) {
+            container.innerHTML = `<h2>✨ 微行动挑战</h2><input id="actionInput" placeholder="7天，我不... (例：不喝奶茶)"><input id="costInput" placeholder="7天会花掉我多少元？"><button id="setMicroBtn">开始挑战</button><button id="resetAdventureBtn" style="margin-top:10px;">🔄 重新冒险</button>`;
+            document.getElementById('setMicroBtn')?.addEventListener('click', () => {
+                const act = document.getElementById('actionInput').value.trim();
+                const cost = parseFloat(document.getElementById('costInput').value);
+                if(act) {
+                    progress.challenge3.actionText = act;
+                    progress.challenge3.microAmount = isNaN(cost) ? 0 : cost;
+                    saveProgress();
+                    render();
+                } else alert("请填写微行动");
+            });
+            document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+                localStorage.removeItem(STORAGE_KEY);
+                render();
+            });
+            return;
+        }
+        const todayKey = `day${currentDay}`;
+        const alreadyChecked = checkins[todayKey];
+        container.innerHTML = `
+            <h2>${isSaveMode ? `🐖 存钱打卡 (第${currentDay}/7天)` : `✨ 微行动打卡 (第${currentDay}/7天)`}</h2>
+            <p>${isSaveMode ? `目标: ${goal}元 · 每日平均≈${(goal/7).toFixed(1)}元` : `挑战：${actionText} · 预计7天花费${microAmount}元`}</p>
+            <div class="card">
+                ${!alreadyChecked ? `
+                    <div class="checkin-btns">
+                        ${isSaveMode ? '<button id="checkSaved">💰 存了</button><button id="checkNot">😔 没存</button><button id="checkFake">📖 记假账</button>' : '<button id="checkYes">✅ 今天遵守了</button><button id="checkNo">❌ 违反</button>'}
+                    </div>
+                ` : `<p>今日已打卡: ${alreadyChecked === 'saved' ? '✅存了' : alreadyChecked === 'not_saved' ? '❌没存' : alreadyChecked === 'fake' ? '📖记假账' : (alreadyChecked === 'yes' ? '✅遵守' : '❌违反')}</p>`}
+            </div>
+            ${!alreadyChecked ? '' : '<button id="nextDayContinue">➡️ 下一天</button>'}
+            <button id="resetAdventureBtn">🔄 重新冒险</button>
+        `;
+        if (!alreadyChecked) {
+            if (isSaveMode) {
+                document.getElementById('checkSaved')?.addEventListener('click', () => { handleCheckin('saved'); });
+                document.getElementById('checkNot')?.addEventListener('click', () => { handleCheckin('not_saved'); });
+                document.getElementById('checkFake')?.addEventListener('click', () => { handleCheckin('fake'); });
+            } else {
+                document.getElementById('checkYes')?.addEventListener('click', () => { handleCheckin('yes'); });
+                document.getElementById('checkNo')?.addEventListener('click', () => { handleCheckin('no'); });
+            }
+        } else {
+            document.getElementById('nextDayContinue')?.addEventListener('click', () => { render(); });
+        }
+        function handleCheckin(value) {
+            checkins[todayKey] = value;
+            progress.challenge3.checkins = checkins;
+            saveProgress();
+            let quote = "";
+            if (value === 'saved') quote = getRandom(saveEncouragements);
+            else if (value === 'yes') quote = getRandom(microEncouragements);
+            else if (value === 'fake' || value === 'no' || value === 'not_saved') quote = getRandom(fakeEncouragements);
+            else quote = "继续加油！";
+            showEncouragement(quote, () => {
+                render();
+            });
+        }
+        document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            render();
+        });
+    }
+
+    // 挑战四
+    function renderChallenge4(container) {
+        if (progress.challenge4.completed) {
+            progress.currentChallenge = 5;
+            saveProgress();
+            render();
+            return;
+        }
+        let savedTotal = 0;
+        if (progress.challenge3.mode === 'save') {
+            const checkins = progress.challenge3.checkins;
+            const goal = progress.challenge3.goal;
+            const savedDays = Object.values(checkins).filter(v=>v==='saved').length;
+            savedTotal = (goal/7) * savedDays;
+        } else {
+            const compliant = Object.values(progress.challenge3.checkins).filter(v=>v==='yes').length;
+            const microAmount = progress.challenge3.microAmount;
+            savedTotal = microAmount ? (microAmount/7)*compliant : 0;
+        }
+        container.innerHTML = `
+            <h2>🏦 资金规划站</h2>
+            <p>上个7天累计存下/节省: <strong>${savedTotal.toFixed(1)}元</strong></p>
+            <label>这笔钱我打算用来做什么？</label>
+            <select id="useForSelect"><option>买书</option><option>学习</option><option>礼物</option><option>应急</option><option>投资</option><option>其他</option></select>
+            <label>下一个7天，我愿不愿意再存同样的金额？</label>
+            <div><label><input type="radio" name="nextSame" value="是"> 是</label> <label><input type="radio" name="nextSame" value="否"> 否</label></div>
+            <div id="nextGoalDiv" style="display:none;"><label>如果愿意，我想用这笔钱做什么？</label><textarea id="nextGoalText"></textarea></div>
+            <button id="finishPlanBtn" class="primary">完成规划，领取徽章</button>
+            <button id="resetAdventureBtn" style="margin-top:10px;">🔄 重新冒险</button>
+        `;
+        const radios = document.querySelectorAll('input[name="nextSame"]');
+        const nextDiv = document.getElementById('nextGoalDiv');
+        radios.forEach(r => r.addEventListener('change', (e) => {
+            if(e.target.value === '是') nextDiv.style.display = 'block';
+            else nextDiv.style.display = 'none';
+        }));
+        document.getElementById('finishPlanBtn')?.addEventListener('click', () => {
+            const useFor = document.getElementById('useForSelect').value;
+            const same = document.querySelector('input[name="nextSame"]:checked')?.value;
+            if(!same) { alert("请选择是否继续存钱"); return; }
+            const nextGoal = same === '是' ? document.getElementById('nextGoalText').value : '';
+            progress.challenge4.useFor = useFor;
+            progress.challenge4.sameAmountNextWeek = same;
+            progress.challenge4.nextWeekGoal = nextGoal;
+            progress.challenge4.completed = true;
+            progress.badgeEarned = true;
+            saveProgress();
+            showEncouragement("金钱本身没有好坏，它是中性的；钱落到不同人手里，才会产生好坏两种结果。", () => {
+                render();
+            });
+        });
+        document.getElementById('resetAdventureBtn')?.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            render();
+        });
+    }
+
+    // 总结页面（完整展示五天成功日记内容）
+    async function renderSummaryAndBadge(container) {
+        const userName = progress.userName || "无名骑士";
+        const c1 = progress.challenge1.wishes;
+        const c2 = progress.challenge2.diary;
+        const c2days = Object.keys(c2).length;
+        const c3mode = progress.challenge3.mode;
+        let achieveText = '';
+        if (c3mode === 'save') {
+            const saved = Object.values(progress.challenge3.checkins).filter(v=>v==='saved').length;
+            achieveText = `存钱成功天数: ${saved}/7，目标${progress.challenge3.goal}元`;
+        } else {
+            const comp = Object.values(progress.challenge3.checkins).filter(v=>v==='yes').length;
+            achieveText = `微行动“${progress.challenge3.actionText}” 遵守${comp}/7天`;
+        }
+
+        let diaryHtml = '';
+        for (let i = 1; i <= 5; i++) {
+            const dayKey = `day${i}`;
+            const content = c2[dayKey] || '（未填写）';
+            diaryHtml += `
+                <div class="card" style="margin-bottom:0.8rem;">
+                    <strong>📅 第 ${i} 天</strong>
+                    <div class="diary-content">${escapeHtml(content).replace(/\n/g, '<br>')}</div>
+                </div>
+            `;
+        }
+
+        container.innerHTML = `
+            <div style="text-align:center; font-size:4rem; margin-bottom:0.5rem;">🐕‍🦺✨</div>
+            <h2>🏆 伟大的财商骑士（${escapeHtml(userName)}）的冒险总结</h2>
+            <div class="card"><strong>📜 三个愿望</strong><br>${c1.map(w=>`• ${w.text} —— ${w.why}`).join('<br>')}</div>
+            <div class="card"><strong>📔 成功日记（共 ${c2days} 天）</strong><br>${diaryHtml}</div>
+            <div class="card"><strong>💰 ${c3mode==='save'?'存钱挑战':'微行动挑战'}</strong><br>${achieveText}</div>
+            <div class="card"><strong>🗺️ 资金规划</strong><br>这笔钱用于: ${progress.challenge4.useFor}<br>下个7天继续? ${progress.challenge4.sameAmountNextWeek} ${progress.challenge4.nextWeekGoal ? '→ '+progress.challenge4.nextWeekGoal : ''}</div>
+            <p>✨ 你已经完成了《小狗钱钱》财商冒险之旅！请记住，从专注自己能做、已知、拥有的事物那一刻起，成功就已经启程。</p>
+            <div class="flex-btns">
+                <button id="sharePosterBtn">🎨 生成分享海报</button>
+                <button id="resetAllBtn">🔄 重新开始所有挑战</button>
+            </div>
+        `;
+        document.getElementById('sharePosterBtn')?.addEventListener('click', async () => {
+            const posterDiv = document.createElement('div');
+            posterDiv.style.cssText = 'background:white; width:400px; padding:20px; border:4px solid black; font-family:monospace;';
+            posterDiv.innerHTML = container.cloneNode(true).innerHTML;
+            document.body.appendChild(posterDiv);
+            const canvas = await html2canvas(posterDiv, { scale:2, backgroundColor:'#FFFFFF' });
+            const link = document.createElement('a');
+            link.download = 'puppy_money_poster.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            document.body.removeChild(posterDiv);
+        });
+        document.getElementById('resetAllBtn')?.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            location.reload();
+        });
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m){
+            if(m==='&') return '&amp;';
+            if(m==='<') return '&lt;';
+            if(m==='>') return '&gt;';
+            return m;
+        });
+    }
+
+    loadProgress();
+    render();
+</script>
+</body>
+</html>
