@@ -251,7 +251,7 @@
 </div>
 
 <script>
-    const STORAGE_KEY = 'puppy_adventure_v14';
+    const STORAGE_KEY = 'puppy_adventure_v15';
 
     // ---------- 游戏数据结构 ----------
     function getEmptyProgress() {
@@ -766,7 +766,7 @@
         };
     }
 
-    // 胜利总结（固定4:5比例海报模板，米白色背景）
+    // 胜利总结（长图海报：宽度固定400，高度自适应）
     async function renderVictory(container) {
         const userName = progress.userName;
         const wish = progress.wish;
@@ -787,30 +787,40 @@
             </div>
         `;
 
-        // 海报生成：独立模板，4:5比例，米白色背景
+        // 海报生成：长图样式，宽度400px，高度根据内容自动撑开，背景米白
         document.getElementById('shareBtn').onclick = async () => {
             const posterDiv = document.createElement('div');
-            posterDiv.style.cssText = 'background:#fcf7e8; width:400px; height:500px; padding:20px; border:4px solid black; font-family:monospace; border-radius:32px; display:flex; flex-direction:column; box-sizing:border-box;';
+            // 关键：宽度固定400px，高度由内容决定（不设固定高度），min-height保证最小高度
+            posterDiv.style.cssText = 'background:#fcf7e8; width:400px; min-height:500px; padding:20px; border:4px solid black; font-family:monospace; border-radius:32px; display:flex; flex-direction:column; box-sizing:border-box;';
             posterDiv.innerHTML = `
                 <div style="text-align:center; font-size:2.5rem;">🐕‍🦺✨</div>
                 <div style="font-size:1.4rem; border-left:4px solid black; padding-left:0.5rem; margin:0.5rem 0 0.8rem 0; font-weight:bold;">🏆 财商骑士 ${escapeHtml(userName)}</div>
-                <div style="flex:1; overflow-y:auto; margin:0.5rem 0;">
-                    <div style="margin-bottom:0.8rem;">
+                <div style="flex:1; overflow-y:visible; margin:0.5rem 0;">
+                    <div style="margin-bottom:1rem;">
                         <strong>📜 愿望</strong><br>
                         <span style="font-weight:normal;">${escapeHtml(wish.text)}</span><br>
                         <span style="font-size:0.8rem; color:#444;">—— ${escapeHtml(wish.reason)}</span>
                     </div>
-                    <div style="margin-bottom:0.6rem;"><strong>🧠 记忆丛林</strong><br>已掌握作者、书名、7大财商概念</div>
-                    <div style="margin-bottom:0.6rem;"><strong>🥚 金蛋河湾</strong><br>保护大鹅，领悟养鹅定律</div>
-                    <div style="margin-bottom:0.6rem;"><strong>🗺️ 规划神殿</strong><br>收下 ${swordsCount} / 7 把利剑</div>
+                    <div style="margin-bottom:0.8rem;"><strong>🧠 记忆丛林</strong><br>已掌握作者、书名、7大财商概念</div>
+                    <div style="margin-bottom:0.8rem;"><strong>🥚 金蛋河湾</strong><br>保护大鹅，领悟养鹅定律</div>
+                    <div style="margin-bottom:0.8rem;"><strong>🗺️ 规划神殿</strong><br>收下 ${swordsCount} / 7 把利剑</div>
                 </div>
-                <div style="text-align:center; font-size:0.8rem; border-top:1px solid #ccc; padding-top:0.8rem; color:#2c2b28;">
+                <div style="text-align:center; font-size:0.8rem; border-top:1px solid #ccc; padding-top:0.8rem; margin-top:0.5rem; color:#2c2b28;">
                     小狗钱钱 · 财商冒险之旅<br>从专注自己能做的事开始成功
                 </div>
             `;
             document.body.appendChild(posterDiv);
             try {
-                const canvas = await html2canvas(posterDiv, { scale:2, backgroundColor:'#fcf7e8', width:400, height:500 });
+                // 获取实际高度
+                const actualHeight = posterDiv.offsetHeight;
+                const canvas = await html2canvas(posterDiv, { 
+                    scale: 2, 
+                    backgroundColor: '#fcf7e8', 
+                    width: 400, 
+                    height: actualHeight,
+                    windowWidth: 400,
+                    windowHeight: actualHeight
+                });
                 const link = document.createElement('a');
                 link.download = 'puppy_money_poster.png';
                 link.href = canvas.toDataURL();
