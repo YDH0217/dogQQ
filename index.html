@@ -251,7 +251,7 @@
 </div>
 
 <script>
-    const STORAGE_KEY = 'puppy_adventure_v12';
+    const STORAGE_KEY = 'puppy_adventure_v14';
 
     // ---------- 游戏数据结构 ----------
     function getEmptyProgress() {
@@ -454,7 +454,7 @@
         };
     }
 
-    // 记忆翻翻乐（去除关卡标题小字）
+    // 记忆翻翻乐（无关卡小字）
     function renderMemoryGame(container) {
         const levels = [
             { gridCols: 2, pairs: [{ text: "博多·舍费尔", matchId: 0 }, { text: "小狗钱钱", matchId: 1 }] },
@@ -544,7 +544,6 @@
 
         function renderGame() {
             const level = levels[currentLevel];
-            // 不显示关卡名称标题
             container.innerHTML = `
                 <div class="story-bubble"><span>🐕</span><span>🧠 记忆丛林 · 翻翻乐！配对成功卡片会变成小狗🐕！</span></div>
                 <h2>📔 记忆翻翻乐 (${matchedCount/2}/${cards.length/2} 对)</h2>
@@ -767,11 +766,14 @@
         };
     }
 
-    // 胜利总结（固定4:5比例海报）
+    // 胜利总结（固定4:5比例海报模板，米白色背景）
     async function renderVictory(container) {
+        const userName = progress.userName;
         const wish = progress.wish;
+        const swordsCount = Object.values(progress.swordsCollected).filter(v=>v===true).length;
+
         container.innerHTML = `
-            <div class="story-bubble"><span>🐕‍🦺🏆</span><span>伟大的财商骑士 ${escapeHtml(progress.userName)}！你完成了所有冒险，获得了最终勇气徽章。</span></div>
+            <div class="story-bubble"><span>🐕‍🦺🏆</span><span>伟大的财商骑士 ${escapeHtml(userName)}！你完成了所有冒险，获得了最终勇气徽章。</span></div>
             <div style="text-align:center; font-size:3rem;">🏆✨</div>
             <h2>🏆 冒险总结</h2>
             <div class="card"><strong>✨ 最重要的愿望</strong><br>${escapeHtml(wish.text)}<br>—— ${escapeHtml(wish.reason)}</div>
@@ -784,14 +786,31 @@
                 <button id="resetAllBtn">🔄 重新开始冒险</button>
             </div>
         `;
+
+        // 海报生成：独立模板，4:5比例，米白色背景
         document.getElementById('shareBtn').onclick = async () => {
             const posterDiv = document.createElement('div');
-            // 固定宽高比4:5，宽度400px，高度500px
-            posterDiv.style.cssText = 'background:white; width:400px; height:500px; padding:20px; border:4px solid black; font-family:monospace; border-radius:32px; overflow-y:auto; box-sizing:border-box;';
-            posterDiv.innerHTML = container.cloneNode(true).innerHTML;
+            posterDiv.style.cssText = 'background:#fcf7e8; width:400px; height:500px; padding:20px; border:4px solid black; font-family:monospace; border-radius:32px; display:flex; flex-direction:column; box-sizing:border-box;';
+            posterDiv.innerHTML = `
+                <div style="text-align:center; font-size:2.5rem;">🐕‍🦺✨</div>
+                <div style="font-size:1.4rem; border-left:4px solid black; padding-left:0.5rem; margin:0.5rem 0 0.8rem 0; font-weight:bold;">🏆 财商骑士 ${escapeHtml(userName)}</div>
+                <div style="flex:1; overflow-y:auto; margin:0.5rem 0;">
+                    <div style="margin-bottom:0.8rem;">
+                        <strong>📜 愿望</strong><br>
+                        <span style="font-weight:normal;">${escapeHtml(wish.text)}</span><br>
+                        <span style="font-size:0.8rem; color:#444;">—— ${escapeHtml(wish.reason)}</span>
+                    </div>
+                    <div style="margin-bottom:0.6rem;"><strong>🧠 记忆丛林</strong><br>已掌握作者、书名、7大财商概念</div>
+                    <div style="margin-bottom:0.6rem;"><strong>🥚 金蛋河湾</strong><br>保护大鹅，领悟养鹅定律</div>
+                    <div style="margin-bottom:0.6rem;"><strong>🗺️ 规划神殿</strong><br>收下 ${swordsCount} / 7 把利剑</div>
+                </div>
+                <div style="text-align:center; font-size:0.8rem; border-top:1px solid #ccc; padding-top:0.8rem; color:#2c2b28;">
+                    小狗钱钱 · 财商冒险之旅<br>从专注自己能做的事开始成功
+                </div>
+            `;
             document.body.appendChild(posterDiv);
             try {
-                const canvas = await html2canvas(posterDiv, { scale:2, backgroundColor:'#FFFFFF', width:400, height:500 });
+                const canvas = await html2canvas(posterDiv, { scale:2, backgroundColor:'#fcf7e8', width:400, height:500 });
                 const link = document.createElement('a');
                 link.download = 'puppy_money_poster.png';
                 link.href = canvas.toDataURL();
@@ -801,6 +820,7 @@
             }
             document.body.removeChild(posterDiv);
         };
+
         document.getElementById('resetAllBtn').onclick = () => {
             localStorage.removeItem(STORAGE_KEY);
             location.reload();
